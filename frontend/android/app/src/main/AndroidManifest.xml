@@ -3,7 +3,7 @@
     
 
     <application
-        android:label="frontend"
+        android:label="Insert Mobile"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
 

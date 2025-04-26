@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:frontend/screens/login_screen.dart';
 import 'package:frontend/models/notification_item.dart';
 import 'package:frontend/services/notification_service.dart';
+import 'package:frontend/services/application_state.dart';
 import '../theme/colors.dart';
+import 'package:frontend/utils/post_utils.dart';
+import 'package:frontend/utils/home_screen_utils.dart'; 
 
 class HomeScreen extends StatefulWidget {
   final String email;
@@ -34,115 +38,28 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _filterSearchResults(String query) {
-    setState(() {
-      _filteredNotifications = _allNotifications
-          .where((item) => item.title.toLowerCase().contains(query.toLowerCase()) ||
-              item.excerpt.toLowerCase().contains(query.toLowerCase()))
-          .toList();
-    });
-  }
-
-  void _signOut(BuildContext context) async {
-    await GoogleSignIn().signOut();
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => LoginScreen()),
-    );
-  }
-
-  Future<void> _refreshNotifications() async {
-    final refreshed = await fetchNotifications();
-    setState(() {
-      _allNotifications = refreshed;
-      _filteredNotifications = refreshed;
-    });
-  }
-
-  void _showPostDialog(BuildContext context, NotificationItem post) {
-    final formattedDate = DateFormat('dd.MM.yyyy HH:mm').format(DateTime.parse(post.scheduledTime));
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        padding: const EdgeInsets.all(16),
-        child: DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 0.85,
-          maxChildSize: 0.95,
-          minChildSize: 0.6,
-          builder: (context, scrollController) => SingleChildScrollView(
-            controller: scrollController,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      post.leadingImage,
-                      height: 200,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Icon(Icons.broken_image, size: 100),
-                    ),
-                  ),
-                ),
-                SizedBox(height: 10),
-                Center(
-                  child: Text(
-                    formattedDate,
-                    style: TextStyle(color: Colors.grey[600]),
-                  ),
-                ),
-                SizedBox(height: 16),
-                Text(post.title, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                SizedBox(height: 10),
-                Text(post.content, style: TextStyle(fontSize: 16)),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _timeAgo(DateTime dateTime) {
-  final now = DateTime.now();
-  final difference = now.difference(dateTime);
-
-  if (difference.inSeconds < 0) {
-    final futureDiff = dateTime.difference(now);
-    if (futureDiff.inDays > 1) return 'za ${futureDiff.inDays} dni';
-    if (futureDiff.inHours > 1) return 'za ${futureDiff.inHours} godzin';
-    if (futureDiff.inMinutes > 1) return 'za ${futureDiff.inMinutes} minut';
-    return 'za chwilę';
-  } else {
-    if (difference.inDays > 1) return '${difference.inDays} dni temu';
-    if (difference.inHours > 1) return '${difference.inHours} godzin temu';
-    if (difference.inMinutes > 1) return '${difference.inMinutes} minut temu';
-    return 'przed chwilą';
-  }
-}
-
-
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: Color(0xFF0071B8),
+      backgroundColor: isDarkMode ? Theme.of(context).scaffoldBackgroundColor : Color(0xFF0071B8),
       appBar: AppBar(
         backgroundColor: Color(0xFF0071B8),
+        iconTheme: IconThemeData(color: Colors.white),
+        titleTextStyle: TextStyle(color: Colors.white, fontSize: 20),
         elevation: 0,
         title: _isSearching
             ? TextField(
                 controller: _searchController,
                 autofocus: true,
-                onChanged: _filterSearchResults,
+                onChanged: (query) {
+                  HomeScreenUtils.filterSearchResults(
+                    query,
+                    _allNotifications,
+                    (filtered) => setState(() => _filteredNotifications = filtered),
+                  );
+                },
                 decoration: InputDecoration(
                   hintText: 'Szukaj...',
                   border: InputBorder.none,
@@ -171,8 +88,15 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             icon: Icon(Icons.logout),
             iconSize: 36,
-            onPressed: () => _signOut(context),
-          )
+            onPressed: () => HomeScreenUtils.signOut(context),
+          ),
+          IconButton(
+            icon: Icon(Icons.brightness_6),
+            iconSize: 36,
+            onPressed: () {
+              Provider.of<ApplicationState>(context, listen: false).toggleDarkMode();
+            },
+          ),
         ],
       ),
       body: FutureBuilder<List<NotificationItem>>(
@@ -181,25 +105,35 @@ class _HomeScreenState extends State<HomeScreen> {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(child: CircularProgressIndicator());
           } else if (snapshot.hasError) {
-            return Center(child: Text("Błąd: \${snapshot.error}"));
+            return Center(child: Text("Błąd: ${snapshot.error}"));
           }
 
           return RefreshIndicator(
-            onRefresh: _refreshNotifications,
+            onRefresh: () async {
+              await HomeScreenUtils.refreshNotifications(
+                (refreshed) => setState(() {
+                  _allNotifications = refreshed;
+                  _filteredNotifications = refreshed;
+                }),
+                fetchNotifications,
+              );
+            },
             child: ListView.builder(
               itemCount: _filteredNotifications.length,
               itemBuilder: (context, index) {
                 final post = _filteredNotifications[index];
                 return GestureDetector(
-                  onLongPress: () => _showPostDialog(context, post),
+                  onLongPress: () => HomeScreenUtils.showPostDialog(context, post),
                   child: Card(
                     margin: EdgeInsets.all(10),
-                    color: Colors.white,
+                    color: Theme.of(context).cardColor,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                     elevation: 4,
                     child: ExpansionTile(
+                      backgroundColor: Theme.of(context).cardColor,
+                      collapsedBackgroundColor: Theme.of(context).cardColor,
                       leading: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: Image.network(
@@ -207,15 +141,14 @@ class _HomeScreenState extends State<HomeScreen> {
                           width: 60,
                           height: 60,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              Icon(Icons.broken_image),
+                          errorBuilder: (context, error, stackTrace) => Icon(Icons.broken_image),
                         ),
                       ),
                       title: Text(
                         post.title,
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: AppColors.primaryDark,
+                          color: isDarkMode ? Theme.of(context).textTheme.bodyLarge!.color : AppColors.primaryDark,
                         ),
                       ),
                       subtitle: Column(
@@ -223,20 +156,31 @@ class _HomeScreenState extends State<HomeScreen> {
                         children: [
                           Text(
                             post.excerpt,
+                            style: TextStyle(
+                              color: isDarkMode ? Theme.of(context).textTheme.bodyMedium!.color : Colors.black,
+                            ),
                             maxLines: 3,
                             overflow: TextOverflow.ellipsis,
                           ),
                           SizedBox(height: 4),
                           Text(
-                            _timeAgo(DateTime.parse(post.scheduledTime)),
-                            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                            HomeScreenUtils.timeAgo(DateTime.parse(post.scheduledTime)),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
+                            ),
                           ),
                         ],
                       ),
                       children: [
                         Padding(
                           padding: const EdgeInsets.all(16.0),
-                          child: Text(post.content),
+                          child: Text(
+                            post.content,
+                            style: TextStyle(
+                              color: isDarkMode ? Theme.of(context).textTheme.bodyMedium!.color : Colors.black,
+                            ),
+                          ),
                         ),
                       ],
                     ),

@@ -18,7 +18,7 @@ def get_notifications():
     cursor.execute("""
         SELECT * FROM notificationsigora
         WHERE scheduled_time <= %s AND sent = 1
-        ORDER BY DATE(scheduled_time) asc, TIME(scheduled_time) desc
+        ORDER BY DATE(scheduled_time) desc, TIME(scheduled_time) desc
     """, (now,))
     notifications = cursor.fetchall()
 

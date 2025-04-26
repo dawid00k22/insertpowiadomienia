@@ -11,7 +11,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final AuthService _authService = AuthService();
   String loginStatus = '';
 
-  final double logoHeight = 300; // ← Możesz to dowolnie zmieniać
+  final double logoHeight = 300; 
 
   Future<void> handleSignIn() async {
     final email = await _authService.signInWithGoogle();
