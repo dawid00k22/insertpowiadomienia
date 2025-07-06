@@ -1,11 +1,21 @@
+import 'dart:io';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class AuthService {
-  final _googleSignIn = GoogleSignIn(
-    serverClientId: dotenv.env['GOOGLE_CLIENT_ID'],
-  );
+  late final GoogleSignIn _googleSignIn;
+
+  AuthService() {
+    final clientId = Platform.isIOS
+        ? dotenv.env['GOOGLE_CLIENT_ID_IOS']
+        : dotenv.env['GOOGLE_CLIENT_ID_ANDROID'];
+
+    _googleSignIn = GoogleSignIn(
+      serverClientId: clientId,
+      scopes: ['email'],
+    );
+  }
 
   Future<String?> signInWithGoogle() async {
     try {
@@ -25,6 +35,7 @@ class AuthService {
       final response = await http.get(Uri.parse(url));
 
       if (response.statusCode == 200) {
+        print("✅ Logowanie zakończone sukcesem: ${account?.email}");
         return account?.email;
       } else {
         print("❌ Logowanie odrzucone przez backend: ${response.statusCode}");
@@ -33,7 +44,7 @@ class AuthService {
       }
     } catch (e) {
       print("❌ Błąd logowania: $e");
-      await _googleSignIn.signOut(); // reset przy błędzie
+      await _googleSignIn.signOut();
       return null;
     }
   }

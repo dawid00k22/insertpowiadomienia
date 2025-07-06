@@ -82,7 +82,7 @@ class HomeScreenUtils {
 
   static String timeAgo(DateTime dateTime) {
     final now = DateTime.now();
-    final difference = now.difference(dateTime.subtract(Duration(hours: 2)));
+    final difference = now.difference(dateTime);
 
     if (difference.inSeconds < 0) {
       final futureDiff = dateTime.difference(now);

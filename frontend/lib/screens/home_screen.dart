@@ -175,13 +175,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         Padding(
                           padding: const EdgeInsets.all(16.0),
-                          child: Text(
-                            post.content,
-                            style: TextStyle(
-                              color: isDarkMode ? Theme.of(context).textTheme.bodyMedium!.color : Colors.black,
-                            ),
-                          ),
+                          child: 
+                            buildFormattedTextWithLinks(context, post.content)
                         ),
+                        
                       ],
                     ),
                   ),

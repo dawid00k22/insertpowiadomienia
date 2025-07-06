@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from db.database import get_db_connection
 from models.notification import Notification, NotificationCreate
-from datetime import datetime
+from datetime import datetime, timedelta
 
 router = APIRouter()
 
@@ -14,7 +14,7 @@ def get_notifications():
     cursor = conn.cursor(dictionary=True)
 
     # Pokazuj tylko te, które mają `sent = True` i są już zaplanowane
-    now = datetime.utcnow()
+    now = datetime.utcnow() + timedelta(hours=2)
     cursor.execute("""
         SELECT * FROM notificationsigora
         WHERE scheduled_time <= %s AND sent = 1
